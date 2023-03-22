@@ -1,9 +1,10 @@
-use std::env;
 
+use anyhow::anyhow;
 use serenity::async_trait;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
+use shuttle_secrets::SecretStore;
 use tracing::{error, info};
 
 struct Bot;
@@ -30,8 +31,15 @@ impl EventHandler for Bot {
 }
 
 #[shuttle_runtime::main]
-async fn serenity() -> shuttle_serenity::ShuttleSerenity {
-    let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
+async fn serenity(
+    #[shuttle_secrets::Secrets] secret_store: SecretStore,
+) -> shuttle_serenity::ShuttleSerenity {
+    
+    let token = if let Some(token) = secret_store.get("DISCORD_TOKEN") {
+        token
+    } else {
+        return Err(anyhow!("'DISCORD_TOKEN' was not found").into());
+    };
 
     let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
 
