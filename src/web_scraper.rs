@@ -33,7 +33,7 @@ pub async fn get_novel_data(novel_name: &str) -> (String, String, String) {
     let mut wayback_availabilty_url =
         "http://archive.org/wayback/available?url=https://www.novelupdates.com/series/".to_string();
 
-    wayback_availabilty_url.push_str(&novel_name.trim().replace(" ", "-").to_lowercase());
+    wayback_availabilty_url.push_str(&novel_name.trim().replace(" ", "-").replace("'","").to_lowercase());
 
     let wayback_response = client
         .get(wayback_availabilty_url)
