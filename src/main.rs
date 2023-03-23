@@ -1,3 +1,4 @@
+use std::env;
 
 use anyhow::anyhow;
 use serenity::async_trait;
@@ -35,11 +36,13 @@ async fn serenity(
     #[shuttle_secrets::Secrets] secret_store: SecretStore,
 ) -> shuttle_serenity::ShuttleSerenity {
     
-    let token = if let Some(token) = secret_store.get("DISCORD_TOKEN") {
-        token
-    } else {
-        return Err(anyhow!("'DISCORD_TOKEN' was not found").into());
-    };
+    // let token = if let Some(token) = secret_store.get("DISCORD_TOKEN") {
+    //     token
+    // } else {
+    //     return Err(anyhow!("'DISCORD_TOKEN' was not found").into());
+    // };
+
+        let token = env::var("DISCORD_TOKEN").expect("expected token");
 
     let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
 
