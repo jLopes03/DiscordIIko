@@ -27,13 +27,19 @@ struct ClosestSnapshot {
     timestamp: String,
 }
 
-pub async fn get_novel_data(novel_name: &str) -> (String, String, String) {
+pub async fn get_novel_data(novel_name: &str) -> Option<(String, String, String)> {
     let client = reqwest::Client::new();
 
     let mut wayback_availabilty_url =
         "http://archive.org/wayback/available?url=https://www.novelupdates.com/series/".to_string();
 
-    wayback_availabilty_url.push_str(&novel_name.trim().replace(" ", "-").replace("'","").to_lowercase());
+    wayback_availabilty_url.push_str(
+        &novel_name
+            .trim()
+            .replace(" ", "-")
+            .replace("'", "")
+            .to_lowercase(),
+    );
 
     let wayback_response = client
         .get(wayback_availabilty_url)
@@ -44,35 +50,38 @@ pub async fn get_novel_data(novel_name: &str) -> (String, String, String) {
         .await
         .unwrap();
 
-    let wayback_data: ArchiveInfo = serde_json::from_str(&wayback_response).unwrap();
+    let wayback_data: Result<ArchiveInfo, _> = serde_json::from_str(&wayback_response);
 
-    let html_response = client
-        .get(wayback_data.archived_snapshots.closest.url)
+    if wayback_data.is_err() {
+        return None;
+    }
+
+    let html_response_result = client
+        .get(wayback_data.unwrap().archived_snapshots.closest.url)
         .send()
         .await
         .unwrap()
         .text()
-        .await
-        .unwrap();
+        .await;
 
-    parse_html(html_response)
-
-    //print!("Image url = {}\n\n\nSynopsis = {}", image_url, synopsys);
+    match html_response_result {
+        Ok(html_response) => parse_html(html_response),
+        _ => return None,
+    }
 }
 
-fn parse_html(response: String) -> (String, String, String) {
+fn parse_html(response: String) -> Option<(String, String, String)> {
     let parsed_html = Html::parse_document(&response);
 
     // Finding the title
+    // I should only need to verify here, if the title exists the rest should too, worth looking into though
 
+    let title: String;
     let title_div_selector = Selector::parse("div.seriestitlenu").unwrap();
-    let title = parsed_html
-        .select(&title_div_selector)
-        .next()
-        .unwrap()
-        .text()
-        .next()
-        .unwrap();
+    match parsed_html.select(&title_div_selector).next() {
+        Some(title_ref) => title = String::from(title_ref.text().next().unwrap()),
+        _ => return None,
+    }
 
     // Finding the image
 
@@ -96,5 +105,5 @@ fn parse_html(response: String) -> (String, String, String) {
         .collect::<Vec<String>>()
         .join("\n\n");
 
-    (String::from(title), String::from(image_url), synopsys)
+    Some((title, String::from(image_url), synopsys))
 }

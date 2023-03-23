@@ -13,24 +13,42 @@ mod web_scraper;
 #[async_trait]
 impl EventHandler for Bot {
     async fn message(&self, ctx: Context, msg: Message) {
-        if msg.author.bot || msg.content.len() < 6 || &msg.content[..6] != "!novel" {
+        if msg.author.bot
+            || msg.content.len() < 6
+            || !msg.content.is_ascii()
+            || &msg.content[..6] != "!novel"
+        {
             // a bunch of verifications to get rid of annoying errors in the terminal
             // the 6 is not inclusive in [..6]
+            // checking if it's not ascii because there are messages where a non_ascii char lands in byte position 6
             return;
         }
 
         let novel_name = &msg.content[6..];
 
-        let (title, image_url, synopsis) = web_scraper::get_novel_data(novel_name).await;
-
-        if let Err(e) = msg
-            .channel_id
-            .send_message(&ctx.http, |m| {
-                m.embed(|e| e.title(title).thumbnail(image_url).description(synopsis))
-            })
-            .await
-        {
-            error!("Error sending message: {:?}", e);
+        match web_scraper::get_novel_data(novel_name).await {
+            Some((title, image_url, synopsis)) => {
+                if let Err(error) = msg
+                    .channel_id
+                    .send_message(&ctx.http, |m| {
+                        m.embed(|e| e.title(title).thumbnail(image_url).description(synopsis))
+                    })
+                    .await
+                {
+                    error!("Error sending message: {:?}", error);
+                }
+            }
+            _ => {
+                if let Err(error) = msg
+                    .channel_id
+                    .send_message(&ctx.http, |m| {
+                        m.embed(|e| e.title("Error").description("The novel title is most likely wrong.\nBut check out a great novel at: https://www.royalroad.com/fiction/44651/breaking-the-chains"))
+                    })
+                    .await
+                {
+                    error!("Error sending message: {:?}", error);
+                }
+            }
         }
     }
 
