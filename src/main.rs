@@ -13,14 +13,24 @@ mod web_scraper;
 #[async_trait]
 impl EventHandler for Bot {
     async fn message(&self, ctx: Context, msg: Message) {
-        let mut iter = msg.content.split_ascii_whitespace();
-        if iter.next() == Some("!novel") {
-            let novel_name = iter.next().unwrap();
-            let message = web_scraper::get_novel_data(novel_name);
+        if msg.author.bot || msg.content.len() < 6 || &msg.content[..6] != "!novel" {
+            // a bunch of verifications to get rid of annoying errors in the terminal
+            // the 6 is not inclusive in [..6]
+            return;
+        }
 
-            if let Err(e) = msg.channel_id.say(&ctx.http, message).await {
-                error!("Error sending message: {:?}", e);
-            }
+        let novel_name = &msg.content[6..];
+
+        let (title, image_url, synopsis) = web_scraper::get_novel_data(novel_name).await;
+
+        if let Err(e) = msg
+            .channel_id
+            .send_message(&ctx.http, |m| {
+                m.embed(|e| e.title(title).thumbnail(image_url).description(synopsis))
+            })
+            .await
+        {
+            error!("Error sending message: {:?}", e);
         }
     }
 
@@ -33,7 +43,6 @@ impl EventHandler for Bot {
 async fn serenity(
     #[shuttle_secrets::Secrets] secret_store: SecretStore,
 ) -> shuttle_serenity::ShuttleSerenity {
-    
     let token = if let Some(token) = secret_store.get("DISCORD_TOKEN") {
         token
     } else {

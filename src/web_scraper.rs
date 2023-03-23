@@ -27,40 +27,52 @@ struct ClosestSnapshot {
     timestamp: String,
 }
 
-// might switch blocking for Client
-pub fn get_novel_data(novel_name: &str) -> String {
+pub async fn get_novel_data(novel_name: &str) -> (String, String, String) {
+    let client = reqwest::Client::new();
+
     let mut wayback_availabilty_url =
         "http://archive.org/wayback/available?url=https://www.novelupdates.com/series/".to_string();
 
-    wayback_availabilty_url.push_str(
-        &novel_name
-            .replace(" ", "-")
-            .replace("\"", "")
-            .to_lowercase(),
-    );
+    wayback_availabilty_url.push_str(&novel_name.trim().replace(" ", "-").to_lowercase());
 
-    let wayback_response = reqwest::blocking::get(wayback_availabilty_url)
+    let wayback_response = client
+        .get(wayback_availabilty_url)
+        .send()
+        .await
         .unwrap()
         .text()
+        .await
         .unwrap();
 
     let wayback_data: ArchiveInfo = serde_json::from_str(&wayback_response).unwrap();
 
-    let html_response = reqwest::blocking::get(wayback_data.archived_snapshots.closest.url)
+    let html_response = client
+        .get(wayback_data.archived_snapshots.closest.url)
+        .send()
+        .await
         .unwrap()
         .text()
+        .await
         .unwrap();
-    let (image_url, synopsys) = parse_html(html_response);
 
-    let message = format!("{}\n\n{}\n", image_url, synopsys);
-
-    message
+    parse_html(html_response)
 
     //print!("Image url = {}\n\n\nSynopsis = {}", image_url, synopsys);
 }
 
-fn parse_html(response: String) -> (String, String) {
+fn parse_html(response: String) -> (String, String, String) {
     let parsed_html = Html::parse_document(&response);
+
+    // Finding the title
+
+    let title_div_selector = Selector::parse("div.seriestitlenu").unwrap();
+    let title = parsed_html
+        .select(&title_div_selector)
+        .next()
+        .unwrap()
+        .text()
+        .next()
+        .unwrap();
 
     // Finding the image
 
@@ -84,5 +96,5 @@ fn parse_html(response: String) -> (String, String) {
         .collect::<Vec<String>>()
         .join("\n\n");
 
-    (String::from(image_url), synopsys)
+    (String::from(title), String::from(image_url), synopsys)
 }
