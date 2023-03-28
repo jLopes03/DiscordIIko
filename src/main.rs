@@ -42,7 +42,7 @@ impl EventHandler for Bot {
                 if let Err(error) = msg
                     .channel_id
                     .send_message(&ctx.http, |m| {
-                        m.embed(|e| e.title("Error").description("The novel title is most likely wrong.\nBut check out a great novel at: https://www.royalroad.com/fiction/44651/breaking-the-chains"))
+                        m.embed(|e| e.title("Error").description("The novel title is most likely wrong.\nOr it could be that the Wayback Machine hasn't done a backup of that website.\nBut check out a great novel at: https://www.royalroad.com/fiction/44651/breaking-the-chains"))
                     })
                     .await
                 {
