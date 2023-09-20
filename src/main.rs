@@ -6,6 +6,7 @@ use serenity::prelude::*;
 use shuttle_secrets::SecretStore;
 use tracing::{error, info};
 
+
 struct Bot;
 
 mod web_scraper;
