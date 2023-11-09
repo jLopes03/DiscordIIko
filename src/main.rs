@@ -3,7 +3,7 @@ use serenity::async_trait;
 use serenity::builder::CreateEmbed;
 use serenity::model::gateway::Ready;
 use serenity::model::prelude::command::Command;
-use serenity::model::prelude::{GuildId, Interaction, InteractionResponseType};
+use serenity::model::prelude::{Interaction, InteractionResponseType};
 use serenity::prelude::*;
 use shuttle_secrets::SecretStore;
 use tracing::info;
