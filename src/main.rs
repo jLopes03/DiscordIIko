@@ -1,63 +1,68 @@
 use anyhow::anyhow;
 use serenity::async_trait;
-use serenity::model::channel::Message;
+use serenity::builder::CreateEmbed;
 use serenity::model::gateway::Ready;
+use serenity::model::prelude::command::Command;
+use serenity::model::prelude::{GuildId, Interaction, InteractionResponseType};
 use serenity::prelude::*;
 use shuttle_secrets::SecretStore;
-use tracing::{error, info};
+use tracing::info;
 
-
+mod commands;
+mod extras;
 struct Bot;
-
-mod web_scraper;
 
 #[async_trait]
 impl EventHandler for Bot {
-    async fn message(&self, ctx: Context, msg: Message) {
-        if msg.author.bot
-            || msg.content.len() < 6
-            || !msg.content.is_ascii()
-            || &msg.content[..6] != "!novel"
-        {
-            // a bunch of verifications to get rid of annoying errors in the terminal
-            // the 6 is not inclusive in [..6]
-            // checking if it's not ascii because there are messages where a non_ascii char lands in byte position 6
-            return;
-        }
+    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        if let Interaction::ApplicationCommand(command) = interaction {
+            println!("Received: {:?}", command);
 
-        let novel_name = &msg.content[6..];
-
-        match web_scraper::get_novel_data(novel_name).await {
-            Some((title, image_url, synopsis)) => {
-                if let Err(error) = msg
-                    .channel_id
-                    .send_message(&ctx.http, |m| {
-                        m.embed(|e| e.title(title).thumbnail(image_url).description(synopsis))
-                    })
-                    .await
-                {
-                    error!("Error sending message: {:?}", error);
-                }
+            // this placeholder allows the code more than 3 seconds to run and display a response on discord
+            if let Err(why) = command
+                .create_interaction_response(&ctx, |response| {
+                    response
+                        .kind(InteractionResponseType::ChannelMessageWithSource)
+                        .interaction_response_data(|message| {
+                            message
+                                .add_embed(CreateEmbed::default().title("Processing...").to_owned())
+                        })
+                })
+                .await
+            {
+                println!("Error sending placeholder: {}", why)
             }
-            _ => {
-                if let Err(error) = msg
-                    .channel_id
-                    .send_message(&ctx.http, |m| {
-                        m.embed(|e| e.title("Error").description("The novel title is most likely wrong.\nOr it could be that the Wayback Machine hasn't done a backup of that website.\nBut check out a great novel at: https://www.royalroad.com/fiction/44651/breaking-the-chains"))
-                    })
-                    .await
-                {
-                    error!("Error sending message: {:?}", error);
-                }
+
+            let content = match command.data.name.as_str() {
+                "novel" => commands::novel::run(&command.data.options).await,
+                _ => CreateEmbed::default().title("not implemented").to_owned(),
+            };
+
+            if let Err(why) = command
+                .edit_original_interaction_response(&ctx, |response| response.set_embed(content))
+                .await
+            {
+                println!("Cannot edit placeholder: {}", why);
             }
         }
     }
 
-    async fn ready(&self, _: Context, ready: Ready) {
+    async fn ready(&self, ctx: Context, ready: Ready) {
         info!("{} is connected!", ready.user.name);
+
+        let registered_commands =
+            Command::set_global_application_commands(&ctx.http, |slash_commands| {
+                slash_commands
+                    .create_application_command(|command| commands::novel::register(command))
+            })
+            .await;
+
+        println!(
+            "Registered the following commands: {:?}",
+            registered_commands
+        );
     }
 }
-
 #[shuttle_runtime::main]
 async fn serenity(
     #[shuttle_secrets::Secrets] secret_store: SecretStore,
