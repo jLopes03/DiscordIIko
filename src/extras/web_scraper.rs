@@ -68,7 +68,7 @@ pub async fn get_novel_data(novel_name: &str) -> Option<(String, String, String)
         Ok(html_response) => parse_html(html_response),
         _ => return None,
     }
-    }
+}
 
 fn parse_html(response: String) -> Option<(String, String, String)> {
     let parsed_html = Html::parse_document(&response);
